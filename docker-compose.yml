@@ -1,7 +1,12 @@
 # Продакшен-схема проекта PC Sale: база, API и nginx как единая точка входа.
-# Значения переменных берутся из файла deploy/.env (в репозиторий не попадает).
+# Значения переменных берутся из файла .env рядом с этим файлом
+# (в репозиторий не попадает).
 #
-# Запуск:  docker compose up --build -d
+# Оба репозитория должны лежать рядом, в одной папке:
+#   Project_PC_Sale/          — код проекта
+#   project-pc-sale-deploy/   — этот репозиторий с файлами развёртывания
+#
+# Запуск:   docker compose up --build -d
 # Проверка: docker compose ps
 # Журналы:  docker compose logs <сервис>
 # Остановка: docker compose down
@@ -24,9 +29,10 @@ services:
       # В PostgreSQL 18 данные лежат в подкаталоге с номером версии,
       # поэтому том подключается к /var/lib/postgresql, а не к .../data
       - pgdata:/var/lib/postgresql
-      # Схема и демонстрационные данные загружаются при первом запуске
-      - ../backend/database/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      - ../backend/database/02_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+      # Схема и демонстрационные данные загружаются при первом запуске.
+      # Путь ведёт в репозиторий проекта, который лежит рядом с этим
+      - ../Project_PC_Sale/backend/database/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ../Project_PC_Sale/backend/database/02_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -37,7 +43,7 @@ services:
   # Портов наружу нет — снаружи виден только nginx.
   app:
     build:
-      context: ../backend
+      context: ../Project_PC_Sale/backend
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -54,8 +60,9 @@ services:
   # Отдаёт собранный интерфейс и проксирует /api/ в app.
   nginx:
     build:
-      context: ..
-      dockerfile: deploy/nginx/Dockerfile
+      # Dockerfile интерфейса лежит в репозитории проекта, рядом с его кодом
+      context: ../Project_PC_Sale/frontend
+      dockerfile: Dockerfile
       args:
         VITE_API_URL: ""
     restart: unless-stopped
